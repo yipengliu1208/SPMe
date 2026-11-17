@@ -1,10 +1,10 @@
-"""SPMe: solid FDM, electrolyte FVM.
+"""SPMe with solid-phase FDM and electrolyte FVM.
 Positive total current means discharge. Concentrations use mol/m^3; time uses seconds.
 
 Inputs:
     cell_parameters: selected module of cell/material constants and electrode OCP functions.
     time / current: equal-length 1D sample arrays [s] and [A]; time must increase strictly.
-        The initial state belongs to time[0]. ZOH holds current[k] until time[k+1].
+        The initial state belongs to time[0]. current[k] applies until time[k+1].
         The final current sample is used for the final algebraic output, without extra duration.
         Outputs retain the right limit at current switches; additional output/cutoff points may occur.
     n_s: internal solid nodes per electrode; n_e: negative/separator/positive FVM cell counts.
@@ -26,15 +26,18 @@ Returned dictionary:
     V / U_n / U_p / U_eq / eta_r / eta_c / phi_e_ohmic / phi_s_ohmic / eta_n / eta_p: [V].
     i0_n / i0_p: averaged exchange current densities [A/m^2].
     c_ss_n / c_ss_p: particle surface concentrations.
+    c_s_n_bulk / c_s_p_bulk: particle volume-average concentrations [mol/m^3], shape (Nt,).
     ce_average_n / ce_average_sep / ce_average_p: regional mean electrolyte concentrations.
     ce_sqrt_average_n / ce_sqrt_average_p: mean sqrt(ce) [(mol/m^3)^0.5].
     stop_reason: termination label.
 
 Internal variables:
+    r_n_full / r_p_full: center, internal node and surface radii [m], shape (n_s+2,).
+    c_s_n_full / c_s_p_full: corresponding solid profiles [mol/m^3], shape (n_s+2,Nt).
     input_time / input_current: original sample arrays; index: sample-interval index.
     valid: output-domain mask; voltage: valid voltage and kinetic output histories.
     zoh_matrices: cache mapping propagation intervals [s] to discrete A and B.
-    discrete: assembled ZOH dictionary for interval dt [s].
+    discrete: assembled state-space dictionary for interval dt [s].
     solid_n_discrete / solid_p_discrete / electrolyte_discrete: discrete submodels.
     State update: x_next=A_d@x+B_d[:,0]*I; output matrices C and D are unchanged.
     solid_n_inputs / solid_p_inputs: named particle parameters reused for each dt.
@@ -42,6 +45,7 @@ Internal variables:
 
 """
 import numpy as np
+from scipy.integrate import simpson
 from scipy.linalg import block_diag
 from scipy.optimize import brentq
 from solid_phase_model import build_solid_model
@@ -143,7 +147,7 @@ def main_spme(time, current, cell_parameters, n_s=60, n_e=(30, 10, 30), output_d
 
     # Assemble the discrete submodels for each propagation interval [s].
     def discrete_matrices(dt):
-        """Assemble ZOH matrices returned by the two physical model modules."""
+        """Assemble discrete matrices returned by the two physical model modules."""
         solid_n_discrete = build_solid_model(**solid_n_inputs, dt=dt)
         solid_p_discrete = build_solid_model(**solid_p_inputs, dt=dt)
         electrolyte_discrete = build_electrolyte_model(cell_parameters, n_e, dt=dt)
@@ -328,4 +332,30 @@ def main_spme(time, current, cell_parameters, n_s=60, n_e=(30, 10, 30), output_d
     result["r_p"] = solid_p.r
     result["x_e"] = electrolyte.centers
     result["stop_reason"] = stop_reason
+
+    # Full radial coordinates: center, interior nodes and surface.
+    r_n_full = np.r_[0.0, solid_n.r, cell_parameters.negative_R_s]
+    r_p_full = np.r_[0.0, solid_p.r, cell_parameters.positive_R_s]
+
+    # Reconstruct center concentrations using the symmetry boundary condition.
+    c_s_n_full = np.vstack([
+        (4 * result["c_s_n"][0] - result["c_s_n"][1]) / 3,
+        result["c_s_n"],
+        result["c_ss_n"],
+    ])
+    c_s_p_full = np.vstack([
+        (4 * result["c_s_p"][0] - result["c_s_p"][1]) / 3,
+        result["c_s_p"],
+        result["c_ss_p"],
+    ])
+
+    # Volume average: c_bulk = 3/R_s**3 * integral(c_s(r)*r**2, r=0..R_s).
+    result["c_s_n_bulk"] = (
+        3 / cell_parameters.negative_R_s**3
+        * simpson(c_s_n_full * r_n_full[:, None]**2, x=r_n_full, axis=0)
+    )
+    result["c_s_p_bulk"] = (
+        3 / cell_parameters.positive_R_s**3
+        * simpson(c_s_p_full * r_p_full[:, None]**2, x=r_p_full, axis=0)
+    )
     return result

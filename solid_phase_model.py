@@ -18,20 +18,17 @@ Variable reference:
     r: internal node radii q*dr [m], shape (n,).
     SolidModel / model: object containing matrices and radial coordinates.
 
-    dt: ZOH propagation interval [s], nonnegative; zero gives the identity update.
+    dt: state propagation interval [s], nonnegative; zero gives the identity update.
     M: augmented continuous matrix [[A_c,B_c],[0,0]].
-    transition: expm(M*dt), containing discrete A and B; C and D are unchanged.
+    transition: state transition matrix containing discrete A and B; C and D are unchanged.
     A_c / B_c: assembled continuous matrices [1/s] and [mol/(m^3 A s)].
-    Returned A / B: ZOH matrices, dimensionless and [mol/(m^3 A)].
+    Returned A / B: discrete matrices, dimensionless and [mol/(m^3 A)].
 
 Equations: X_next=A@X+B*I; c_ss=C@X+D*I.
 Continuous reference: dX/dt=A_c@X+B_c*I.
 The @ operator is matrix multiplication; * is scalar or elementwise multiplication.
 
-Discretization:
-Spherical central differences with a second-order backward surface-flux
-boundary approximation. State nodes lie at r_q=q*dr, q=1,...,n;
-the last state is inside the particle.
+State nodes lie at r_q=q*dr, q=1,...,n; the last state is inside the particle.
 """
 from dataclasses import dataclass
 import numpy as np

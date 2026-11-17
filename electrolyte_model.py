@@ -1,4 +1,4 @@
-"""Build conservative FVM matrices for negative electrode, separator and positive electrode.
+"""Build conservative FVM matrices for the three electrolyte regions.
 States are absolute cell-average concentrations in negative/separator/positive order.
 
 Variable reference:
@@ -28,11 +28,11 @@ Variable reference:
     blocks: dictionary storing regional and coupling matrices under their names.
     ElectrolyteModel: object containing matrices, blocks and mesh information.
 
-    dt: ZOH propagation interval [s], nonnegative; zero gives the identity update.
+    dt: state propagation interval [s], nonnegative; zero gives the identity update.
     M: augmented continuous matrix [[A_c,B_c],[0,0]].
-    transition: expm(M*dt), containing discrete A and B; C and D are unchanged.
+    transition: state transition matrix containing discrete A and B; C and D are unchanged.
     A_c / B_c: assembled continuous matrices [1/s] and [mol/(m^3 A s)].
-    Returned A / B: ZOH matrices, dimensionless and [mol/(m^3 A)].
+    Returned A / B: discrete matrices, dimensionless and [mol/(m^3 A)].
 
 Equations: x_e_next=A@x_e+B*I; boundary outputs=C@x_e+D*I.
 Continuous reference: dx_e/dt=A_c@x_e+B_c*I.

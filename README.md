@@ -6,11 +6,11 @@ The implementation keeps the physical equations and state-space matrices visible
 
 - Solid-phase radial diffusion: finite difference method (FDM).
 - Electrolyte transport across the negative electrode, separator and positive electrode: finite volume method (FVM).
-- Time propagation: zero-order-hold (ZOH) discretization using matrix exponentials.
-- Reaction kinetics: symmetric Butler–Volmer (BV) equation.
+- Concentration state updates driven by the supplied current profile.
+- Reaction kinetics: symmetric Butler-Volmer (BV) equation.
 - Voltage: electrode OCP difference, reaction overpotentials, electrolyte concentration contribution and electrolyte/solid ohmic losses.
 
-Positive total current means **discharge**; negative current means charge. Current is in **A**, time in **s**, concentration in **mol/m³**, and voltage in **V**.
+Positive total current means **discharge**; negative current means charge. Current is in **A**, time in **s**, concentration in **mol/m^3**, and voltage in **V**.
 
 ## Installation
 
@@ -50,7 +50,7 @@ $$
 \dot{x}(t)=A_c x(t)+B_c I(t).
 $$
 
-For a constant current over a time interval $\Delta t$, ZOH gives
+For a constant current over a time interval $\Delta t$, the state update is
 
 $$
 x_{k+1}=A_d x_k+B_d I_k,\qquad
@@ -58,7 +58,7 @@ A_d=e^{A_c\Delta t},\qquad
 B_d=\int_0^{\Delta t}e^{A_c\tau}B_c\,d\tau.
 $$
 
-The phase-model modules compute these matrices using an augmented matrix exponential. Particle surface concentrations are reconstructed through the solid-model output equation $c_{ss}=Cx+DI$.
+The phase-model modules return the discrete state and input matrices. Particle surface concentrations are reconstructed through the solid-model output equation $c_{ss}=Cx+DI$.
 
 Terminal voltage is assembled as
 
@@ -67,7 +67,7 @@ V_t=(U_p-U_n)+(\eta_p-\eta_n)+\eta_c
 +\phi_{e,\mathrm{ohmic}}+\phi_{s,\mathrm{ohmic}}.
 $$
 
-The ohmic and overpotential contributions retain their algebraic signs. Electrolyte concentration averages and averages of its square root are calculated from the FVM states for the voltage and BV closures.
+The ohmic and overpotential contributions retain their algebraic signs. Electrolyte concentration averages and averages of its square root are calculated from the electrolyte states for the voltage and BV closures.
 
 ## Outputs
 
@@ -81,9 +81,10 @@ The returned dictionary includes:
 | `eta_n`, `eta_p`, `eta_r` | Electrode reaction overpotentials and `eta_p - eta_n` [V]. |
 | `eta_c` | Electrolyte concentration voltage contribution [V]. |
 | `phi_e_ohmic`, `phi_s_ohmic` | Electrolyte and solid ohmic voltage contributions [V]. |
-| `i0_n`, `i0_p` | Averaged exchange current densities [A/m²]. |
+| `i0_n`, `i0_p` | Averaged exchange current densities [A/m^2]. |
 | `c_s_n`, `c_s_p` | Internal solid concentration histories, shape `(n_s, Nt)`. |
 | `c_ss_n`, `c_ss_p` | Particle surface concentration histories, shape `(Nt,)`. |
+| `c_s_n_bulk`, `c_s_p_bulk` | Particle volume-average concentrations [mol/m^3], shape `(Nt,)`. |
 | `c_e` | Electrolyte cell-average concentrations, shape `(sum(n_e), Nt)`. |
 | `ce_average_n`, `ce_average_sep`, `ce_average_p` | Regional electrolyte concentration averages. |
 | `ce_sqrt_average_n`, `ce_sqrt_average_p` | Electrode averages of `sqrt(c_e)`. |
@@ -91,17 +92,17 @@ The returned dictionary includes:
 | `r_n`, `r_p`, `x_e` | Internal particle radii and electrolyte cell-center coordinates [m]. |
 | `stop_reason` | Completion or cutoff description. |
 
-Here `Nt` is the number of returned time samples; concentration arrays have time along columns. Internal particle states exclude the center and surface; surface concentrations are returned separately.
+Here `Nt` is the number of returned time samples; concentration arrays have time along columns. Internal particle states exclude the center and surface; surface concentrations are returned separately. Bulk concentrations describe the volume-average concentration of each particle.
 
-The driver checks limits at intervals no greater than 1 s and locates bracketed crossings by root finding. At a physical concentration cutoff, the true endpoint state is retained and its voltage/kinetic outputs are `NaN`, because the BV expression is undefined at that boundary.
+The simulation stops when a concentration or enabled voltage limit is reached. At a physical concentration cutoff, the true endpoint state is retained and its voltage/kinetic outputs are `NaN`, because the BV expression is undefined at that boundary.
 
 ## Source files
 
 | File | Role |
 | --- | --- |
-| `main_spme.py` | Callable simulation driver, initial states, ZOH propagation, cutoff handling and output assembly. |
-| `solid_phase_model.py` | Radial FDM matrices, surface-concentration output and ZOH discretization. |
-| `electrolyte_model.py` | Three-region FVM matrices, spatial outputs/averages and ZOH discretization. |
+| `main_spme.py` | Callable simulation driver, initial states, concentration updates, cutoff handling and output assembly. |
+| `solid_phase_model.py` | Radial FDM matrices, particle coordinates and surface-concentration output. |
+| `electrolyte_model.py` | Three-region FVM matrices, electrolyte coordinates and regional averages. |
 | `bv_overpotential.py` | Exchange current densities and symmetric BV inversion. |
 | `cell_voltage.py` | Terminal-voltage contributions. |
 | `parameters.py` | Example cell/material parameters, initial conditions and selected OCP functions. |
