@@ -21,55 +21,6 @@ git clone https://github.com/yipengliu1208/SPMe.git
 cd SPMe
 python -m pip install numpy scipy
 ```
-
-## Quick start
-
-Run the following from the repository directory, or place it in a separate caller script that can import the model modules:
-
-```python
-import numpy as np
-import parameters
-from main_spme import main_spme
-
-# One current sample per second, including both endpoints.
-time = np.arange(0.0, 601.0)
-current = 0.2 + 0.1 * np.sin(time / 30.0)
-
-result = main_spme(
-    time=time,
-    current=current,
-    cell_parameters=parameters,
-    n_s=60,
-    n_e=(30, 10, 30),
-    output_dt=1.0,
-    voltage_limits=True,
-)
-
-voltage = result["V"]
-print(result["stop_reason"])
-print(result["time"][-1], voltage[-1])
-
-# Save data from the caller for subsequent analysis.
-np.savetxt(
-    "voltage.csv",
-    np.column_stack([result["time"], result["current"], voltage]),
-    delimiter=",",
-    header="time_s,current_A,voltage_V",
-    comments="",
-)
-```
-
-For a measured profile, replace the time and current definitions with CSV columns:
-
-```python
-data = np.genfromtxt("current_profile.csv", delimiter=",", names=True)
-time = data["time_s"]
-current = data["current_A"]
-result = main_spme(time, current, parameters)
-```
-
-The CSV must contain headers `time_s,current_A` and at least two rows. The arrays must be finite, one-dimensional, equal in length, and strictly increasing in time. Nonuniform sampling intervals are supported. Convert current density to total current before calling the model if the input data use A/m².
-
 ## Inputs and time convention
 
 ```python
