@@ -21,6 +21,38 @@ git clone https://github.com/yipengliu1208/SPMe.git
 cd SPMe
 python -m pip install numpy scipy
 ```
+
+## Quick start
+
+Run `python main.py` for a 1C discharge example, or call the model with your own current samples.
+
+### Terminal voltage only
+
+```python
+import numpy as np
+
+import parameters
+from main import main_vt
+
+time = np.arange(0.0, 61.0, 1.0)  # Sample times [s].
+current = np.full(time.size, parameters.nominal_capacity_Ah)  # 1C discharge [A].
+time_vt, Vt = main_vt(time, current, parameters)
+```
+
+`main_vt` uses an evenly spaced time grid and returns the sampled time and terminal voltage arrays. It checks voltage and concentration limits at those sample times.
+
+### Full simulation outputs
+
+Use the same `time` and `current` arrays to obtain concentration histories and individual voltage contributions.
+
+```python
+from main_testing import main_spme
+
+result = main_spme(time, current, parameters)
+time_full = result["time"]
+Vt_full = result["V"]
+```
+
 ## Inputs and time convention
 
 ```python
@@ -30,7 +62,7 @@ main_spme(time, current, cell_parameters,
 
 | Argument | Meaning |
 | --- | --- |
-| `time` | Sample times [s]. Initial conditions apply at `time[0]`. |
+| `time` | Strictly increasing sample times [s]. Initial conditions apply at `time[0]`. |
 | `current` | Sampled total cell current [A]. |
 | `cell_parameters` | Python module containing geometry, material parameters, initial concentrations, OCP functions and voltage limits. |
 | `n_s` | Number of internal radial solid states per electrode. |
@@ -40,7 +72,7 @@ main_spme(time, current, cell_parameters,
 
 Over each interval `[time[k], time[k+1])`, the input is held at `current[k]`. The final current sample determines the algebraic outputs at the final time without advancing the state further. At current switches, the returned sample uses the new current (the right limit), provided that operating point is admissible. If the new current immediately violates a limit, simulation stops and retains the preceding valid result.
 
-Output times may include extra points and a located cutoff time. Use `result["time"]` with the returned data, rather than assuming the output has the same length as the input profile.
+The full simulation output may include extra sample points and a located cutoff time. Use `result["time"]` with the returned data, rather than assuming the output has the same length as the input profile.
 
 ## Model equations
 
@@ -71,7 +103,7 @@ The ohmic and overpotential contributions retain their algebraic signs. Electrol
 
 ## Outputs
 
-The returned dictionary includes:
+`main_spme` returns a dictionary with the following keys.
 
 | Keys | Description |
 | --- | --- |
@@ -100,7 +132,8 @@ The simulation stops when a concentration or enabled voltage limit is reached. A
 
 | File | Role |
 | --- | --- |
-| `main_spme.py` | Callable simulation driver, initial states, concentration updates, cutoff handling and output assembly. |
+| [`main.py`](main.py) | Voltage-only entry point, `main_vt`. |
+| [`main_testing.py`](main_testing.py) | Full simulation entry point, `main_spme`, with concentration histories, voltage components and cutoff handling. |
 | `solid_phase_model.py` | Radial FDM matrices, particle coordinates and surface-concentration output. |
 | `electrolyte_model.py` | Three-region FVM matrices, electrolyte coordinates and regional averages. |
 | `bv_overpotential.py` | Exchange current densities and symmetric BV inversion. |
